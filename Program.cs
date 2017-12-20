@@ -25,6 +25,83 @@ namespace VivaceHolidaysParser
             .ConnectionString;
         }
 
+        struct TableToSave{
+            public string date;
+            public string country;
+            public string holiday;
+            public string exchange;
+            public string details;
+
+            public TableToSave(string date, string country, string holiday, string exchange, string details)
+            {
+                var day = date.Split('.')[0];
+                var month = date.Split('.')[1];
+                var year = date.Split('.')[2];
+                this.date = year+"."+month+"."+day;
+                this.country = country;
+                this.holiday = holiday;
+                this.exchange = exchange;
+                this.details = details;
+            }
+        }
+
+        public static bool DeleteAllFromTableHolidays()
+        {
+            try
+            {
+                using (MySqlConnection connection = new MySqlConnection(GetConnectionString()))
+                {
+                    using (MySqlCommand query = connection.CreateCommand())
+                    {
+                        connection.Open();
+
+                        using (MySqlCommand command = new MySqlCommand(
+                "DELETE FROM T_HOLIDAYS WHERE DATE IS NOT NULL", connection))
+                        {
+                            command.ExecuteNonQuery();
+                        }
+                    }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+
+        }
+
+        public static bool InsertIntoTableHolidays(string date, string country, string holiday, string exchange, string details)
+        {
+            try
+            {
+                using (MySqlConnection connection = new MySqlConnection(GetConnectionString()))
+                {
+                    using (MySqlCommand query = connection.CreateCommand())
+                    {
+                        connection.Open();
+
+                        using (MySqlCommand command = new MySqlCommand(
+                "INSERT INTO T_HOLIDAYS VALUES(@Date, @Country, @Holiday, @Exchange, @Details)", connection))
+                        {
+                            command.Parameters.Add(new MySqlParameter("Date", date));
+                            command.Parameters.Add(new MySqlParameter("Country", country));
+                            command.Parameters.Add(new MySqlParameter("Holiday", holiday));
+                            command.Parameters.Add(new MySqlParameter("Exchange", exchange));
+                            command.Parameters.Add(new MySqlParameter("Details", details));
+                            command.ExecuteNonQuery();
+                        }
+                    }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+
+        }
+
 
         static string ConvertToGermany(string str)
         {
@@ -41,29 +118,58 @@ namespace VivaceHolidaysParser
                     int year = 2015;
                     var doc = new HtmlAgilityPack.HtmlDocument();
                     //2015
+                    List<TableToSave> data = new List<TableToSave>();
+                    int errorCounter = 0;
+                    int i = 0;
+
                     for (year = 2015; year <= 2018; year++)
                     {
-
 
                         doc.LoadHtml(web.DownloadString("https://www.wallstreet-online.de/_rpc/json/news/calendar/getCalendarTable?formtype=holiday&range=" + year + "&country%5B%5D=22&country%5B%5D=25&country%5B%5D=2&country%5B%5D=6&country%5B%5D=93&country%5B%5D=32&country%5B%5D=33&country%5B%5D=1&country%5B%5D=3&country%5B%5D=20&offset="));
                         var dataContainer = doc.DocumentNode.SelectNodes("//td");
                         int j = 0;
-                        for (int i = 0; i < doc.DocumentNode.SelectNodes("//tr").Count; i++)
-                        {
-                            Console.WriteLine(ConvertToGermany(dataContainer[j].InnerText.Split('<')[0]));
-                            Console.WriteLine(ConvertToGermany(dataContainer[j + 1].InnerText.Split('<')[0]));
-                            Console.WriteLine(ConvertToGermany(dataContainer[j + 2].InnerText.Split('>')[1].Split('<')[0]));
-                            Console.WriteLine(ConvertToGermany(dataContainer[j + 3].InnerText.Split('<')[0]));
-                            Console.WriteLine(ConvertToGermany(dataContainer[j + 4].InnerText.Split('<')[0]));
-                            Console.WriteLine();
-                            j += 5;
+                        int trCount = dataContainer.Count() / 5 - 1;
 
+
+                       
+                        for (i = 0; i <= trCount; i++)
+                        {
+                            
+                            string date = ConvertToGermany(dataContainer[j].InnerText.Split('<')[0]);
+                            string country = ConvertToGermany(dataContainer[j + 1].InnerText.Split('<')[0]);
+                            string holiday = ConvertToGermany(dataContainer[j + 2].InnerText.Split('>')[1].Split('<')[0]);
+                            string exchange = ConvertToGermany(dataContainer[j + 3].InnerText.Split('<')[0]);
+                            string details = ConvertToGermany(dataContainer[j + 4].InnerText.Split('<')[0]);
+                            data.Add(new TableToSave(date, country, holiday, exchange, details));
+                            Console.WriteLine(date + " "+ country + " " + holiday + " " + exchange + " "+details);
+                            Console.WriteLine("Parsing data: "+i+"/"+trCount+"(To "+year+" year)");
+                            j += 5;
                         }
-                        Console.ReadLine();
+                        Console.WriteLine("Errors: "+errorCounter);
+                    }
+                    i = 0;
+                    
+                    DeleteAllFromTableHolidays();
+                    Console.ReadLine();
+                    foreach (var item in data)
+                    {
+                        i++;
+                        if (InsertIntoTableHolidays(item.date, item.country, item.holiday, item.exchange, item.details))
+                        {
+                            Console.WriteLine("Saving " + (i - errorCounter) + "/" + data.Count);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Error with data " + item.date + " " + item.country + " " + year + "!");
+                        }
                     }
                 }
-                catch
+
+                
+
+                catch(Exception ex)
                 {
+                    Console.WriteLine(ex.StackTrace);
                     Console.ReadLine();
                 }
             }
