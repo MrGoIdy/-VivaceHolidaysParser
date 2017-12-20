@@ -7,12 +7,12 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
+
+/* Created BY Zolotarev Alexander 12/2017 */
 namespace VivaceHolidaysParser
 {
     class Program
     {
-
-
         private static string GetConnectionString()
         {
             return (new MySqlConnectionStringBuilder
@@ -25,7 +25,8 @@ namespace VivaceHolidaysParser
             .ConnectionString;
         }
 
-        struct TableToSave{
+        struct TableToSave
+        {
             public string date;
             public string country;
             public string holiday;
@@ -110,6 +111,7 @@ namespace VivaceHolidaysParser
 
         static void Main(string[] args)
         {
+            Console.WriteLine("--Vivace Holidays Parser--");
             using (var web = new WebClient())
             {
                 web.Headers.Add("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36");
@@ -127,30 +129,35 @@ namespace VivaceHolidaysParser
 
                         doc.LoadHtml(web.DownloadString("https://www.wallstreet-online.de/_rpc/json/news/calendar/getCalendarTable?formtype=holiday&range=" + year + "&country%5B%5D=22&country%5B%5D=25&country%5B%5D=2&country%5B%5D=6&country%5B%5D=93&country%5B%5D=32&country%5B%5D=33&country%5B%5D=1&country%5B%5D=3&country%5B%5D=20&offset="));
                         var dataContainer = doc.DocumentNode.SelectNodes("//td");
-                        int j = 0;
+                        int collumnNumber = 0;
                         int trCount = dataContainer.Count() / 5 - 1;
-
-
-                       
                         for (i = 0; i <= trCount; i++)
                         {
-                            
-                            string date = ConvertToGermany(dataContainer[j].InnerText.Split('<')[0]);
-                            string country = ConvertToGermany(dataContainer[j + 1].InnerText.Split('<')[0]);
-                            string holiday = ConvertToGermany(dataContainer[j + 2].InnerText.Split('>')[1].Split('<')[0]);
-                            string exchange = ConvertToGermany(dataContainer[j + 3].InnerText.Split('<')[0]);
-                            string details = ConvertToGermany(dataContainer[j + 4].InnerText.Split('<')[0]);
-                            data.Add(new TableToSave(date, country, holiday, exchange, details));
-                            Console.WriteLine(date + " "+ country + " " + holiday + " " + exchange + " "+details);
-                            Console.WriteLine("Parsing data: "+i+"/"+trCount+"(To "+year+" year)");
-                            j += 5;
+                            try
+                            {
+                                string date = ConvertToGermany(dataContainer[collumnNumber].InnerText.Split('<')[0]);
+                                string country = ConvertToGermany(dataContainer[collumnNumber + 1].InnerText.Split('<')[0]);
+                                string holiday = ConvertToGermany(dataContainer[collumnNumber + 2].InnerText.Split('>')[1].Split('<')[0]);
+                                string exchange = ConvertToGermany(dataContainer[collumnNumber + 3].InnerText.Split('<')[0]);
+                                string details = ConvertToGermany(dataContainer[collumnNumber + 4].InnerText.Split('<')[0]);
+                                data.Add(new TableToSave(date, country, holiday, exchange, details));
+                                Console.WriteLine("Parsing: " + i + "/" + trCount + "(To " + year + " year)");
+                                collumnNumber += 5;
+                            }
+                            catch
+                            {
+                                Console.WriteLine("Error with data with row-index" +i+ "/Year:" + year + "!");
+                                errorCounter++;
+                            }
                         }
-                        Console.WriteLine("Errors: "+errorCounter);
+                       
                     }
-                    i = 0;
                     
+                    i = 0;
+                    Console.Write("Removing old data from DataBase...");
                     DeleteAllFromTableHolidays();
-                    Console.ReadLine();
+                    Console.WriteLine(" complete");
+                    Console.WriteLine("Connecting to DataBase");
                     foreach (var item in data)
                     {
                         i++;
@@ -164,9 +171,6 @@ namespace VivaceHolidaysParser
                         }
                     }
                 }
-
-                
-
                 catch(Exception ex)
                 {
                     Console.WriteLine(ex.StackTrace);
